@@ -87,7 +87,7 @@ export default async function handler(req, res) {
     if (!Number.isFinite(price) || price <= 0 || price > 100000 ||
         !Number.isFinite(ship) || ship < 0 || ship > 100000 ||
         !Number.isFinite(total) || total !== price + ship ||
-        !cleanAddress || !deliveryType) {
+        !deliveryType) {
       return res.status(400).json({ message: 'بيانات طلب الساعة غير صحيحة أو غير مكتملة.' });
     }
 
@@ -114,7 +114,6 @@ export default async function handler(req, res) {
       { key: 'الهاتف', value: cleanPhone },
       { key: 'الولاية', value: cleanWilaya },
       { key: 'البلدية', value: cleanCommune },
-      { key: 'العنوان', value: cleanAddress },
       { key: 'نوع التوصيل', value: String(deliveryType) },
       { key: 'سعر المنتج', value: `${price} دج` },
       { key: 'سعر التوصيل', value: `${ship} دج` },
@@ -128,7 +127,7 @@ export default async function handler(req, res) {
       firstName: cleanName,
       lastName: '',
       phone: cleanPhone,
-      address1: cleanAddress,
+      address1: cleanCommune,
       city: cleanCommune,
       province: cleanWilaya,
       country: 'Algeria'
