@@ -1,19 +1,11 @@
 // api/create-order.js
-// Serverless Function (Vercel) — يستقبل بيانات استمارة صفحة الهبوط وينشئ Draft Order في شوبيفاي.
-//
-// منذ 1 يناير 2026، تطبيقات Dev Dashboard لا تُعطي توكن ثابت، بل Client ID + Client Secret.
-// هذه الدالة تبادلهما تلقائيًا للحصول على access_token صالح 24 ساعة (client_credentials grant)،
-// ثم تستخدمه لإنشاء الطلب عبر GraphQL Admin API. كل هذا يحدث على الخادم فقط،
-// الـ Client Secret لا يظهر أبدًا في المتصفح.
+// Vercel Serverless Function — يدعم صفحة iPhone الحالية وصفحة RW-81 في نفس Shopify Draft Orders.
 
-// كاش بسيط داخل ذاكرة الدالة (يفيد فقط إذا أعيد استخدام نفس الـ instance، وإلا يُطلب توكن جديد تلقائيًا — لا مشكلة)
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
 
 async function getAccessToken(shop, clientId, clientSecret) {
-  if (cachedToken && Date.now() < cachedTokenExpiresAt - 60_000) {
-    return cachedToken;
-  }
+  if (cachedToken && Date.now() < cachedTokenExpiresAt - 60_000) return cachedToken;
 
   const tokenRes = await fetch(`https://${shop}.myshopify.com/admin/oauth/access_token`, {
     method: 'POST',
@@ -36,12 +28,14 @@ async function getAccessToken(shop, clientId, clientSecret) {
   return cachedToken;
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
-  }
+function isValidPhone(phone) {
+  return typeof phone === 'string' && /^(0)(5|6|7)[0-9]{8}$/.test(phone.replace(/\s+/g, ''));
+}
 
-  const SHOP = process.env.SHOPIFY_SHOP;                 // مثال: bd5ia1-rc  (بدون .myshopify.com)
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+
+  const SHOP = process.env.SHOPIFY_SHOP;
   const CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
   const CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
   const API_VERSION = '2025-10';
@@ -52,20 +46,120 @@ export default async function handler(req, res) {
   }
 
   const body = req.body || {};
-  const { name, phone, wilaya, commune, phoneModel, variantId, colorLabel } = body;
+  const {
+    name, phone, wilaya, commune, address,
+    phoneModel, variantId, colorLabel,
+    product, deliveryType, shippingPrice, productPrice, totalPrice
+  } = body;
 
-  // تحقق صارم من البيانات على الخادم
-  const phoneOk = typeof phone === 'string' && /^(0)(5|6|7)[0-9]{8}$/.test(phone.replace(/\s+/g, ''));
+  const cleanName = typeof name === 'string' ? name.trim() : '';
+  const cleanPhone = typeof phone === 'string' ? phone.replace(/\s+/g, '') : '';
+  const cleanWilaya = typeof wilaya === 'string' ? wilaya.trim() : '';
+  const cleanCommune = typeof commune === 'string' ? commune.trim() : '';
+  const cleanAddress = typeof address === 'string' ? address.trim() : '';
+
+  if (!cleanName || cleanName.length < 3 || !isValidPhone(cleanPhone) || !cleanWilaya || !cleanCommune) {
+    return res.status(400).json({ message: 'البيانات المرسلة غير صحيحة أو غير مكتملة.' });
+  }
+
+  const isRW81 = product === 'RW-81';
   const ALLOWED_VARIANTS = ['44154901987402', '44154902020170', '44154902052938', '44154902085706'];
 
-  if (
-    !name || typeof name !== 'string' || name.trim().length < 3 ||
-    !phoneOk ||
-    !wilaya || typeof wilaya !== 'string' ||
-    !commune || typeof commune !== 'string' ||
-    !variantId || !ALLOWED_VARIANTS.includes(String(variantId))
-  ) {
-    return res.status(400).json({ message: 'البيانات المرسلة غير صحيحة أو غير مكتملة.' });
+  // الصفحة القديمة: لا نغيّر منطقها.
+  if (!isRW81) {
+    if (!cleanAddress || !variantId || !ALLOWED_VARIANTS.includes(String(variantId))) {
+      return res.status(400).json({ message: 'البيانات المرسلة غير صحيحة أو غير مكتملة.' });
+    }
+  }
+
+  let lineItems;
+  let shippingLine = undefined;
+  let customAttributes;
+  let note;
+  let tags;
+  let shippingAddress;
+
+  if (isRW81) {
+    const price = Number(productPrice);
+    const ship = Number(shippingPrice);
+    const total = Number(totalPrice);
+
+    if (!Number.isFinite(price) || price <= 0 || price > 100000 ||
+        !Number.isFinite(ship) || ship < 0 || ship > 100000 ||
+        !Number.isFinite(total) || total !== price + ship ||
+        !cleanAddress || !deliveryType) {
+      return res.status(400).json({ message: 'بيانات طلب الساعة غير صحيحة أو غير مكتملة.' });
+    }
+
+    // Custom line item: لا يحتاج Variant ID خاص بالساعة.
+    lineItems = [{
+      title: 'HainoTeko Germany RW-81',
+      quantity: 1,
+      originalUnitPrice: String(price),
+      requiresShipping: true,
+      taxable: false,
+      customAttributes: [
+        { key: 'المنتج', value: 'RW-81' }
+      ]
+    }];
+
+    shippingLine = {
+      title: String(deliveryType),
+      price: String(ship)
+    };
+
+    customAttributes = [
+      { key: 'المنتج', value: 'RW-81' },
+      { key: 'الاسم', value: cleanName },
+      { key: 'الهاتف', value: cleanPhone },
+      { key: 'الولاية', value: cleanWilaya },
+      { key: 'البلدية', value: cleanCommune },
+      { key: 'العنوان', value: cleanAddress },
+      { key: 'نوع التوصيل', value: String(deliveryType) },
+      { key: 'سعر المنتج', value: `${price} دج` },
+      { key: 'سعر التوصيل', value: `${ship} دج` },
+      { key: 'المجموع', value: `${total} دج` },
+      { key: 'طريقة الدفع', value: 'الدفع عند الاستلام' }
+    ];
+
+    note = `طلب RW-81 من صفحة الهبوط — الدفع عند الاستلام — المجموع ${total} دج`;
+    tags = ['COD', 'Landing Page', 'RW-81'];
+    shippingAddress = {
+      firstName: cleanName,
+      lastName: '',
+      phone: cleanPhone,
+      address1: cleanAddress,
+      city: cleanCommune,
+      province: cleanWilaya,
+      country: 'Algeria'
+    };
+  } else {
+    lineItems = [
+      { variantId: `gid://shopify/ProductVariant/${variantId}`, quantity: 1 }
+    ];
+
+    customAttributes = [
+      { key: 'الاسم', value: cleanName },
+      { key: 'الهاتف', value: cleanPhone },
+      { key: 'الولاية', value: cleanWilaya },
+      { key: 'البلدية', value: cleanCommune },
+      { key: 'العنوان', value: cleanAddress },
+      { key: 'الطراز', value: phoneModel || '' },
+      { key: 'اللون', value: colorLabel || '' },
+      { key: 'طريقة الدفع', value: 'الدفع عند الاستلام' }
+    ];
+
+    note = 'طلب من صفحة الهبوط — الدفع عند الاستلام (COD)';
+    tags = ['COD', 'Landing Page'];
+    shippingAddress = {
+      firstName: cleanName,
+      lastName: '',
+      phone: cleanPhone,
+      address1: cleanAddress,
+      city: cleanCommune,
+      province: cleanWilaya,
+      country: 'Algeria'
+    };
   }
 
   const mutation = `
@@ -77,33 +171,15 @@ export default async function handler(req, res) {
     }
   `;
 
-  const variables = {
-    input: {
-      lineItems: [
-        { variantId: `gid://shopify/ProductVariant/${variantId}`, quantity: 1 }
-      ],
-      note: 'طلب من صفحة الهبوط — الدفع عند الاستلام (COD)',
-      customAttributes: [
-        { key: 'الاسم', value: name.trim() },
-        { key: 'الهاتف', value: phone.trim() },
-        { key: 'الولاية', value: wilaya },
-        { key: 'البلدية', value: commune.trim() },
-        { key: 'الطراز', value: phoneModel || '' },
-        { key: 'اللون', value: colorLabel || '' },
-        { key: 'طريقة الدفع', value: 'الدفع عند الاستلام' }
-      ],
-      tags: ['COD', 'Landing Page'],
-      shippingAddress: {
-        firstName: name.trim(),
-        lastName: '',
-        phone: phone.trim(),
-        address1: commune.trim(),
-        city: commune.trim(),
-        province: wilaya,
-        country: 'Algeria'
-      }
-    }
+  const input = {
+    lineItems,
+    note,
+    customAttributes,
+    tags,
+    shippingAddress
   };
+
+  if (shippingLine) input.shippingLine = shippingLine;
 
   try {
     const accessToken = await getAccessToken(SHOP, CLIENT_ID, CLIENT_SECRET);
@@ -114,7 +190,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         'X-Shopify-Access-Token': accessToken
       },
-      body: JSON.stringify({ query: mutation, variables })
+      body: JSON.stringify({ query: mutation, variables: { input } })
     });
 
     const shopifyData = await shopifyRes.json();
