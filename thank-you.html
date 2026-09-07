@@ -8,16 +8,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#12141a;
-    --surface:#1c2028;
-    --line:#2c313d;
-    --orange:#ff6a1a;
-    --text:#f4f1ea;
-    --muted:#9aa1ad;
+    --bg:#061729;
+    --surface:#0a2238;
+    --line:#173b58;
+    --cyan:#19c5ff;
+    --blue:#1688f5;
+    --text:#f7fbff;
+    --muted:#a9bfd1;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{
-    background:var(--bg);
+    background:radial-gradient(circle at 50% 0%, #0b3150 0%, var(--bg) 48%, #04111f 100%);
     color:var(--text);
     font-family:'Tajawal', sans-serif;
     min-height:100vh;
@@ -29,22 +30,29 @@
   .card{
     max-width:480px;
     width:100%;
-    background:var(--surface);
+    background:linear-gradient(180deg, rgba(11,39,64,.98), rgba(7,28,47,.98));
     border:1px solid var(--line);
     border-radius:24px;
     padding:44px 32px;
     text-align:center;
-    box-shadow:0 30px 60px -20px rgba(0,0,0,.6);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,.75), 0 0 35px rgba(25,197,255,.08);
+  }
+  .brand{
+    color:var(--cyan);
+    font-size:.95rem;
+    font-weight:900;
+    letter-spacing:.5px;
+    margin-bottom:26px;
   }
   .check{
     width:74px; height:74px;
     border-radius:50%;
-    background:rgba(255,106,26,.15);
-    border:2px solid var(--orange);
+    background:rgba(25,197,255,.12);
+    border:2px solid var(--cyan);
     display:flex; align-items:center; justify-content:center;
     margin:0 auto 24px;
-    font-size:2rem;
-    color:var(--orange);
+    font-size:2.2rem; font-weight:900;
+    color:var(--cyan);
   }
   h1{
     font-size:1.5rem;
@@ -59,10 +67,10 @@
   a.back{
     display:inline-block;
     margin-top:22px;
-    color:var(--orange);
+    color:var(--cyan);
     text-decoration:none;
     font-weight:700;
-    border:1.5px solid var(--orange);
+    border:0;
     padding:12px 28px;
     border-radius:100px;
   }
@@ -70,6 +78,7 @@
 </head>
 <body>
   <div class="card">
+    <div class="brand">Big Z Store</div>
     <div class="check">✓</div>
     <h1>شكرًا لك، تم استلام طلبك بنجاح</h1>
     <p>سيتصل بك أحد ممثلي خدمة العملاء قريبًا لتأكيد الطلب قبل الشحن.</p>
