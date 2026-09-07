@@ -48,9 +48,11 @@ export default async function handler(req, res) {
   const body = req.body || {};
   const {
     name, phone, wilaya, commune, address,
-    phoneModel, variantId, colorLabel,
+    phoneModel, variantId, colorLabel, color,
     product, deliveryType, shippingPrice, productPrice, totalPrice
   } = body;
+
+  const cleanColor = typeof color === 'string' ? color.trim() : (typeof colorLabel === 'string' ? colorLabel.trim() : '');
 
   const cleanName = typeof name === 'string' ? name.trim() : '';
   const cleanPhone = typeof phone === 'string' ? phone.replace(/\s+/g, '') : '';
@@ -67,7 +69,7 @@ export default async function handler(req, res) {
 
   // الصفحة القديمة: لا نغيّر منطقها.
   if (!isRW81) {
-    if (!cleanAddress || !variantId || !ALLOWED_VARIANTS.includes(String(variantId))) {
+    if (!variantId || !ALLOWED_VARIANTS.includes(String(variantId))) {
       return res.status(400).json({ message: 'البيانات المرسلة غير صحيحة أو غير مكتملة.' });
     }
   }
@@ -99,7 +101,8 @@ export default async function handler(req, res) {
       requiresShipping: true,
       taxable: false,
       customAttributes: [
-        { key: 'المنتج', value: 'RW-81' }
+        { key: 'المنتج', value: 'RW-81' },
+        { key: 'اللون', value: cleanColor }
       ]
     }];
 
@@ -114,6 +117,8 @@ export default async function handler(req, res) {
       { key: 'الهاتف', value: cleanPhone },
       { key: 'الولاية', value: cleanWilaya },
       { key: 'البلدية', value: cleanCommune },
+      { key: 'العنوان', value: cleanAddress },
+      { key: 'اللون', value: cleanColor },
       { key: 'نوع التوصيل', value: String(deliveryType) },
       { key: 'سعر المنتج', value: `${price} دج` },
       { key: 'سعر التوصيل', value: `${ship} دج` },
@@ -127,7 +132,7 @@ export default async function handler(req, res) {
       firstName: cleanName,
       lastName: '',
       phone: cleanPhone,
-      address1: cleanCommune,
+      address1: cleanAddress,
       city: cleanCommune,
       province: cleanWilaya,
       country: 'Algeria'
