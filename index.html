@@ -1122,19 +1122,6 @@ src="https://www.facebook.com/tr?id=1401602145251044&ev=PageView&noscript=1"/></
 </footer>
 
 <script>
-document.getElementById('orderForm').addEventListener('submit',function(e){
- e.preventDefault();
- const data={
-  name:document.getElementById('name').value.trim(),
-  phone:document.getElementById('phone').value.trim(),
-  wilaya:document.getElementById('wilaya').value,
-  color:document.getElementById('color').value,
-  note:document.getElementById('note').value.trim()
- };
- alert("تم استلام الطلب مبدئياً!\n\n"+data.name+" — "+data.phone+"\n"+data.wilaya+" — "+data.color);
-});
-</script>
-<script>
 (function(){
 const rates={"أدرار":[1100,600],"الشلف":[700,400],"الأغواط":[900,500],"أم البواقي":[790,400],"باتنة":[790,400],"بجاية":[690,400],"بسكرة":[900,500],"بشار":[1100,600],"البليدة":[500,250],"البويرة":[650,400],"تمنراست":[1400,800],"تبسة":[790,450],"تلمسان":[790,400],"تيارت":[790,400],"تيزي وزو":[630,350],"الجزائر":[380,200],"الجلفة":[890,500],"جيجل":[700,400],"سطيف":[690,390],"سعيدة":[790,390],"سكيكدة":[690,390],"سيدي بلعباس":[690,390],"عنابة":[700,390],"قالمة":[790,390],"قسنطينة":[700,390],"المدية":[600,390],"مستغانم":[700,390],"المسيلة":[790,490],"معسكر":[690,390],"ورقلة":[990,490],"وهران":[690,390],"البيض":[990,590],"إليزي":[1300,790],"برج بوعريريج":[700,390],"بومرداس":[590,350],"الطارف":[790,450],"تندوف":[1250,690],"تيسمسيلت":[790,390],"الوادي":[900,490],"خنشلة":[800,450],"سوق أهراس":[800,450],"تيبازة":[550,350],"ميلة":[690,390],"عين الدفلى":[650,390],"النعامة":[990,550],"عين تموشنت":[690,390],"غرداية":[990,490],"غليزان":[700,390],"تيميمون":[1300,650],"أولاد جلال":[900,490],"بني عباس":[1100,590],"عين صالح":[1300,890],"تقرت":[950,500],"المغير":[950,550],"المنيعة":[950,550],"جانت":[1700,1100],"برج باجي مختار":[1100,600]};
 const productPrice=4500;
@@ -1164,25 +1151,56 @@ form.addEventListener('submit',function(e){
  const type=document.querySelector('input[name="delivery_type"]:checked')?.value||'home';
  const r=rates[w]; const ship=r?(type==='home'?r[0]:r[1]):null;
  if(!ship){alert('يرجى اختيار ولاية وطريقة توصيل متاحة.');return;}
- // Meta Pixel: Lead عند إرسال طلب صالح
- if (typeof fbq === 'function') {
-   fbq('track', 'Lead', {
-     content_name: 'T5 Sports Watch',
-     content_category: 'Smart Watch',
-     value: productPrice + ship,
-     currency: 'DZD'
-   });
- }
- alert('تم استلام طلبك مبدئياً!
 
-الاسم: '+name+'
-الهاتف: '+phone+'
-الولاية: '+w+'
-البلدية: '+commune+'
-اللون: '+color+'
-التوصيل: '+(type==='home'?'إلى المنزل':'إلى المكتب')+'
-الشحن: '+ship+' دج
-الإجمالي: '+(productPrice+ship)+' دج');
+ const total=productPrice+ship;
+ const payload={
+   product:'RW-81',
+   name:name,
+   phone:phone,
+   wilaya:w,
+   commune:commune,
+   address:commune,
+   color:color,
+   colorLabel:color,
+   deliveryType: type==='home' ? 'التوصيل إلى المنزل' : 'التوصيل إلى المكتب',
+   shippingPrice: ship,
+   productPrice: productPrice,
+   totalPrice: total
+ };
+
+ const submitBtn=form.querySelector('.top-submit');
+ const originalBtnText=submitBtn ? submitBtn.textContent : '';
+ if(submitBtn){ submitBtn.disabled=true; submitBtn.textContent='...جاري إرسال الطلب'; }
+
+ fetch('/api/create-order', {
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body: JSON.stringify(payload)
+ })
+ .then(async function(res){
+   let data={};
+   try{ data=await res.json(); }catch(err){}
+   if(!res.ok || !data.success){
+     throw new Error(data.message || 'تعذّر إرسال الطلب، يرجى المحاولة مرة أخرى.');
+   }
+   if (typeof fbq === 'function') {
+     fbq('track', 'Lead', {
+       content_name: 'T5 Sports Watch',
+       content_category: 'Smart Watch',
+       value: total,
+       currency: 'DZD'
+     });
+   }
+   alert('تم استلام طلبك بنجاح!\n\nالاسم: '+name+'\nالهاتف: '+phone+'\nالولاية: '+w+'\nالبلدية: '+commune+'\nاللون: '+color+'\nالتوصيل: '+(type==='home'?'إلى المنزل':'إلى المكتب')+'\nالشحن: '+ship+' دج\nالإجمالي: '+total+' دج');
+   form.reset();
+   updatePrice();
+ })
+ .catch(function(err){
+   alert(err.message || 'حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى.');
+ })
+ .finally(function(){
+   if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent=originalBtnText; }
+ });
 });
 })();
 </script>
